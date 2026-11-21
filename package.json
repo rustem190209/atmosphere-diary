@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "check:fixtures": "npx --yes tsx scripts/check-fixtures.ts",
-    "check:analyze": "npx --yes tsx scripts/check-analyze.ts"
+    "check:analyze": "npx --yes tsx scripts/check-analyze.ts",
+    "check:style": "npx --yes tsx scripts/check-style.ts",
+    "check": "npm run check:fixtures && npm run check:analyze && npm run check:style"
   },
   "dependencies": {
     "idb-keyval": "^6.3.0",

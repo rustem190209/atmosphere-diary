@@ -1,12 +1,15 @@
-// Экран «Новый день». Форма появится на этапе S3.
+// Экран «Новый день».
+import DayForm from "@/components/DayForm";
+
 export default function NewDayPage() {
   return (
     <section>
       <h1>Новый день</h1>
-      <p className="muted">
-        Расскажите, как прошёл день, приложите фото и песню. Форма появится на
-        следующем этапе.
+      <p className="muted lead">
+        Расскажите, как прошёл день, приложите фото и песню — дневник превратит
+        это в воспоминание.
       </p>
+      <DayForm />
     </section>
   );
 }

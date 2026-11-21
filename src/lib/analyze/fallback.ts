@@ -160,7 +160,7 @@ const EMOTION_STEMS: Record<Emotion, string[]> = {
 };
 
 // Типичное «звучание» эмоции: valence (-1..1), энергия, напряжение, теплота (0..1)
-const EMOTION_DIMS: Record<Emotion, [number, number, number, number]> = {
+export const EMOTION_DIMS: Record<Emotion, [number, number, number, number]> = {
   joy: [0.8, 0.7, 0.2, 0.7],
   nostalgia: [0.3, 0.3, 0.2, 0.7],
   calm: [0.5, 0.2, 0.1, 0.6],
@@ -175,7 +175,7 @@ const EMOTION_DIMS: Record<Emotion, [number, number, number, number]> = {
   fatigue: [-0.3, 0.15, 0.5, 0.35],
 };
 
-const ATMOSPHERE: Record<Emotion, string> = {
+export const ATMOSPHERE: Record<Emotion, string> = {
   joy: "светлая радость",
   nostalgia: "тёплая память",
   calm: "тихий покой",
