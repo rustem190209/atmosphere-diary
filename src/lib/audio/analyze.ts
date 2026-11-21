@@ -2,6 +2,7 @@
 // Файл: декодируем в браузере, считаем темп (BPM), энергию (громкость) и «яркость» звука.
 // Ссылка: аудио не скачиваем — темп и энергию оцениваем по жанру, году и характеру, который указал пользователь.
 import { clamp, type AudioSpec } from "../schema";
+import { detectTempo, type TempoResult } from "./tempo";
 
 export type SongMood = "calm" | "medium" | "energetic" | "";
 
@@ -15,8 +16,34 @@ export interface SongMeta {
   mode?: "major" | "minor"; // известный лад
 }
 
-// Анализируем отрезок из середины песни (там обычно припев, а не тихое вступление)
+// Анализируем отрезки по 30 с из разных частей песни (не тихое вступление)
 const SEGMENT = 30;
+
+// Смешать каналы в моно (стерео-песня → один сигнал)
+function monoMix(buffer: AudioBuffer): Float32Array {
+  const out = new Float32Array(buffer.length);
+  for (let c = 0; c < buffer.numberOfChannels; c++) {
+    const ch = buffer.getChannelData(c);
+    for (let i = 0; i < ch.length; i++)
+      out[i] += ch[i] / buffer.numberOfChannels;
+  }
+  return out;
+}
+
+// Медиана: устойчива к одному «сбившемуся» отрезку
+function medianTempo(list: number[]): number {
+  const s = [...list].sort((a, b) => a - b);
+  return s[Math.floor(s.length / 2)];
+}
+
+// Частая ошибка детекторов — темп вдвое больше или меньше настоящего.
+// Если пользователь сказал, что песня спокойная или энергичная, поправляем «октаву» темпа.
+function foldToMood(bpm: number, mood?: SongMood): number {
+  if (mood === "calm" && bpm > 120 && bpm / 2 >= 55) return Math.round(bpm / 2);
+  if (mood === "energetic" && bpm < 85 && bpm * 2 <= 190)
+    return Math.round(bpm * 2);
+  return Math.round(bpm);
+}
 
 export async function analyzeAudioFile(
   file: Blob,
@@ -28,24 +55,39 @@ export async function analyzeAudioFile(
     const offset = Math.max(0, buffer.duration / 2 - SEGMENT / 2);
     const duration = Math.min(SEGMENT, buffer.duration - offset);
 
-    // Темп: библиотека web-audio-beat-detector. Если не смогла — ставим 100 и низкую уверенность
+    // Темп: свой детектор (tempo.ts) на трёх отрезках песни, берём медиану.
+    // Если отрезки согласны и ритм чёткий — уверенность выше
     let bpm = 100;
     let bpmConfidence = 0.2;
-    try {
-      const { guess } = await import("web-audio-beat-detector");
-      const res = await guess(buffer, offset, duration, {
-        minTempo: 70,
-        maxTempo: 170,
-      });
-      bpm = res.bpm;
-      bpmConfidence = 0.8;
-    } catch {
-      /* тихая или очень неровная запись — оставляем запасные значения */
-    }
-    // Если темп известен заранее (указан пользователем или у демо-трека) — он точнее детектора
     if (meta.bpm) {
+      // Темп известен заранее (у демо-трека) — он точнее детектора
       bpm = meta.bpm;
       bpmConfidence = 1;
+    } else {
+      const mono = monoMix(buffer);
+      const sr = buffer.sampleRate;
+      const results: TempoResult[] = [];
+      for (const part of buffer.duration > 60 ? [0.25, 0.5, 0.75] : [0.5]) {
+        const from = Math.max(
+          0,
+          Math.floor((buffer.duration * part - SEGMENT / 2) * sr),
+        );
+        const r = detectTempo(
+          mono.subarray(from, Math.min(mono.length, from + SEGMENT * sr)),
+          sr,
+        );
+        if (r.confidence > 0) results.push(r);
+      }
+      if (results.length) {
+        bpm = medianTempo(results.map((r) => r.bpm));
+        const agree =
+          results.filter((r) => Math.abs(r.bpm - bpm) / bpm < 0.04).length /
+          results.length;
+        const clarity =
+          results.reduce((s, r) => s + r.confidence, 0) / results.length;
+        bpmConfidence = +clamp(0.3 + 0.35 * agree + 0.3 * clarity).toFixed(2);
+        bpm = foldToMood(bpm, meta.mood);
+      }
     }
 
     // Энергия (RMS) и «яркость» (доля пересечений нуля — чем выше, тем звонче звук)

@@ -75,6 +75,7 @@ export default function DayForm() {
   const [consent, setConsent] = useState(true);
   const [step, setStep] = useState<Step | null>(null);
   const [error, setError] = useState("");
+  const [formKey, setFormKey] = useState(0);
 
   // Превью фото: временные ссылки на файлы, удаляем при смене списка
   const previews = useMemo(
@@ -127,6 +128,29 @@ export default function DayForm() {
       (songTab === "link" ? "вставьте ссылку на песню" : "выберите аудиофайл"),
   ].filter(Boolean) as string[];
 
+  function resetForm() {
+    setText("");
+    setPhotos([]);
+    setPhotoError("");
+    setSongUrl("");
+    setSongFile(null);
+    setSongTitle("");
+    setSongYear("");
+    setSongGenre("");
+    setSongMood("");
+    setUseCheckIn(false);
+    setCheckIn({
+      intensity: 3,
+      emotions: [],
+      tension: 3,
+      satisfaction: 3,
+      wouldRelive: 3,
+    });
+    setStep(null);
+    setError("");
+    setFormKey((k) => k + 1); // пересоздать поля выбора файлов
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (problems.length || step) return;
@@ -156,6 +180,8 @@ export default function DayForm() {
         },
         setStep,
       );
+      // Next.js сохраняет состояние страницы при возврате назад — очищаем форму для следующего дня
+      resetForm();
       router.push(`/day/${day.id}`);
     } catch (err) {
       console.error(err);
@@ -165,7 +191,7 @@ export default function DayForm() {
   }
 
   return (
-    <form className="day-form" onSubmit={submit}>
+    <form key={formKey} className="day-form" onSubmit={submit}>
       <label className="field">
         <span className="field-label">Как прошёл день?</span>
         <textarea

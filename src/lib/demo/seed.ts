@@ -11,7 +11,7 @@ interface DemoDay {
   date: string;
   text: string;
   photos?: string[];
-  scene?: "park" | "office" | "city";
+  scene?: "park" | "office" | "city" | "rain" | "room" | "lake" | "festive";
   palettes?: [string, string, string][];
   song: {
     file?: string;
@@ -40,6 +40,107 @@ function markSeeded() {
   }
 }
 
+// Дополнительные сцены: дождь за окном, комната с лампой, озеро, праздничные огни
+function drawExtraScene(
+  x: CanvasRenderingContext2D,
+  scene: "rain" | "room" | "lake" | "festive",
+  [, c2, c3]: [string, string, string],
+  rnd: () => number,
+  w: number,
+  h: number,
+) {
+  const blurDots = (n: number, colors: string[], maxR: number, yMax = 1) => {
+    x.filter = "blur(16px)";
+    for (let i = 0; i < n; i++) {
+      x.globalAlpha = 0.25 + rnd() * 0.55;
+      x.fillStyle = colors[Math.floor(rnd() * colors.length)];
+      x.beginPath();
+      x.arc(rnd() * w, rnd() * h * yMax, 20 + rnd() * maxR, 0, Math.PI * 2);
+      x.fill();
+    }
+    x.filter = "none";
+    x.globalAlpha = 1;
+  };
+
+  if (scene === "rain") {
+    blurDots(18, [c3], 70, 0.8); // огни улицы сквозь стекло
+    x.strokeStyle = c3;
+    x.lineWidth = 2;
+    for (let i = 0; i < 260; i++) {
+      x.globalAlpha = 0.15 + rnd() * 0.35;
+      const sx = rnd() * w,
+        sy = rnd() * h,
+        len = 30 + rnd() * 90;
+      x.beginPath();
+      x.moveTo(sx, sy);
+      x.lineTo(sx - 6, sy + len);
+      x.stroke();
+    }
+    x.globalAlpha = 1;
+    // Рама окна
+    x.fillStyle = c2;
+    x.fillRect(w * 0.48, 0, 26, h);
+    x.fillRect(0, h * 0.55, w, 26);
+  } else if (scene === "room") {
+    // Тёплая лампа и рамки старых фотографий на стене
+    const lamp = x.createRadialGradient(
+      w * 0.75,
+      h * 0.3,
+      10,
+      w * 0.75,
+      h * 0.3,
+      650,
+    );
+    lamp.addColorStop(0, c3);
+    lamp.addColorStop(1, "rgba(0,0,0,0)");
+    x.fillStyle = lamp;
+    x.fillRect(0, 0, w, h);
+    for (let i = 0; i < 6; i++) {
+      const fw = 140 + rnd() * 140,
+        fh = fw * (1.1 + rnd() * 0.3);
+      const fx = rnd() * (w - fw),
+        fy = rnd() * h * 0.6;
+      x.globalAlpha = 0.85;
+      x.fillStyle = c2;
+      x.fillRect(fx, fy, fw, fh);
+      x.fillStyle = c3;
+      x.globalAlpha = 0.5;
+      x.fillRect(fx + 14, fy + 14, fw - 28, fh - 28);
+    }
+    x.globalAlpha = 1;
+    x.fillStyle = c2;
+    x.fillRect(0, h * 0.8, w, h * 0.2); // стол
+  } else if (scene === "lake") {
+    // Небо, солнце, вода с бликами, берег
+    x.fillStyle = c3;
+    x.beginPath();
+    x.arc(w * (0.3 + rnd() * 0.4), h * 0.28, 110, 0, Math.PI * 2);
+    x.fill();
+    const water = x.createLinearGradient(0, h * 0.5, 0, h);
+    water.addColorStop(0, c2);
+    water.addColorStop(1, "#1d3b4f");
+    x.fillStyle = water;
+    x.fillRect(0, h * 0.5, w, h * 0.5);
+    x.fillStyle = c3;
+    for (let i = 0; i < 90; i++) {
+      x.globalAlpha = 0.2 + rnd() * 0.6;
+      x.fillRect(
+        rnd() * w,
+        h * (0.5 + rnd() * 0.45),
+        20 + rnd() * 80,
+        3 + rnd() * 4,
+      );
+    }
+    x.globalAlpha = 1;
+  } else {
+    // Праздничные огни: гирлянда разноцветного боке
+    blurDots(60, [c3, "#ffcf6e", "#ff8a7a", "#fff2c8"], 60, 0.9);
+    x.fillStyle = c2;
+    x.fillRect(0, h * 0.78, w, h * 0.22);
+    blurDots(12, ["#fff2c8"], 30, 1);
+  }
+}
+
 // ---------- Генерация фото: абстрактная сцена в палитре дня ----------
 async function makeScenePhoto(
   scene: DemoDay["scene"],
@@ -59,7 +160,14 @@ async function makeScenePhoto(
   x.fillStyle = sky;
   x.fillRect(0, 0, w, h);
 
-  if (scene === "office") {
+  if (
+    scene === "rain" ||
+    scene === "room" ||
+    scene === "lake" ||
+    scene === "festive"
+  ) {
+    drawExtraScene(x, scene, [c1, c2, c3], rnd, w, h);
+  } else if (scene === "office") {
     // Окна ночного офиса и свечение экрана
     for (let i = 0; i < 70; i++) {
       x.globalAlpha = 0.25 + rnd() * 0.6;

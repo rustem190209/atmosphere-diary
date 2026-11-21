@@ -8,6 +8,7 @@ import type { DayRecord } from "@/lib/schema";
 import { deleteDay, getDay } from "@/lib/storage/db";
 import ScenePlayer from "@/components/ScenePlayer";
 import WhyPanel from "@/components/WhyPanel";
+import { exportDayZip } from "@/lib/export/zip";
 
 type Tab = "memory" | "folder" | "why";
 
@@ -77,6 +78,18 @@ export default function DayView() {
     router.push("/archive");
   }
 
+  // Скачать папку дня одним архивом: текст, фото, песня (ссылка), постер, «почему»
+  async function downloadZip() {
+    if (!day) return;
+    const { blob, filename } = await exportDayZip(day);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+
   if (day === undefined) return <p className="muted">Открываю день…</p>;
   if (day === null)
     return (
@@ -130,9 +143,14 @@ export default function DayView() {
 
       <div className="day-actions">
         <Link href="/archive">← В архив</Link>
-        <button className="btn-danger" onClick={remove}>
-          Удалить день
-        </button>
+        <div className="day-actions-right">
+          <button className="btn-secondary" onClick={downloadZip}>
+            Скачать папку (ZIP)
+          </button>
+          <button className="btn-danger" onClick={remove}>
+            Удалить день
+          </button>
+        </div>
       </div>
     </section>
   );

@@ -40,7 +40,9 @@ export function mapToStyle(
 
   // ---------- Нормализованные входы ----------
   const era = eraOld(audio);
-  const N = clamp(weightOf(mood, "nostalgia") + 0.3 * era); // ностальгия
+  // Ностальгия относительно главной эмоции: если она ведущая — N близко к 1, даже при смешанных чувствах
+  const topWeight = Math.max(...mood.emotions.map((e) => e.weight));
+  const N = clamp((weightOf(mood, "nostalgia") / topWeight) * 0.85 + 0.3 * era);
   const W = clamp(0.6 * mood.warmth + 0.4 * photo.warmth); // теплота: текст + фото
   const T = mood.tension;
   const V = mood.valence;
@@ -56,7 +58,7 @@ export function mapToStyle(
   // ---------- Веса техник ----------
   let paint = 0.45 * W + 0.3 * (1 - T) + 0.25 * (1 - E_m);
   let geometry = 0.5 * T + 0.3 * E_m + 0.2 * (1 - W);
-  let film = 0.5 * N + 0.3 * C + 0.2 * era + 0.25 * weightOf(mood, "melancholy"); // грусть тоже немного «плёночная»
+  let film = 0.75 * N + 0.35 * C + 0.2 * era + 0.25 * weightOf(mood, "melancholy"); // грусть тоже немного «плёночная»
   // Усиливаем различия между днями: степень 1.5, затем нормируем
   [paint, geometry, film] = [paint, geometry, film].map(
     (v) => Math.max(0.05, v) ** 1.5,

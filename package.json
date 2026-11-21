@@ -10,14 +10,14 @@
     "check:fixtures": "npx --yes tsx scripts/check-fixtures.ts",
     "check:analyze": "npx --yes tsx scripts/check-analyze.ts",
     "check:style": "npx --yes tsx scripts/check-style.ts",
-    "check": "npm run check:fixtures && npm run check:analyze && npm run check:style"
+    "check": "npm run check:fixtures && npm run check:analyze && npm run check:style && npm run check:tempo",
+    "check:tempo": "npx --yes tsx scripts/check-tempo.ts"
   },
   "dependencies": {
     "idb-keyval": "^6.3.0",
     "next": "16.4.6",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "web-audio-beat-detector": "^8.2.39",
     "zod": "^4.6.7"
   },
   "devDependencies": {
