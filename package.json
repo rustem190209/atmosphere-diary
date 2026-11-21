@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "check:fixtures": "node scripts/check-fixtures.ts"
+    "check:fixtures": "npx --yes tsx scripts/check-fixtures.ts",
+    "check:analyze": "npx --yes tsx scripts/check-analyze.ts"
   },
   "dependencies": {
     "idb-keyval": "^6.3.0",

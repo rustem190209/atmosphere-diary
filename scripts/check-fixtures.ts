@@ -1,7 +1,7 @@
 // Проверка: все фикстуры MoodSpec проходят zod-схему.
 // Запуск (PowerShell): npm run check:fixtures
-import { MoodSpecSchema } from "../src/lib/schema.ts";
-import { MOOD_FIXTURES } from "../src/lib/fixtures/moods.ts";
+import { MoodSpecSchema } from "../src/lib/schema";
+import { MOOD_FIXTURES } from "../src/lib/fixtures/moods";
 
 let failed = 0;
 for (const [name, mood] of Object.entries(MOOD_FIXTURES)) {
