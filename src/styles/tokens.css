@@ -1,0 +1,31 @@
+/* Токены дизайна. Дизайнер меняет значения здесь — весь сайт подхватит. */
+:root {
+  --bg: #f6f1e9; /* фон, тёплая бумага */
+  --surface: #fffdf9; /* карточки */
+  --ink: #1f1b16; /* основной текст */
+  --muted: #6f665b; /* второстепенный текст */
+  --line: #e2d9cc; /* линии и рамки */
+  --accent: #8a4b2a; /* акцент, кнопки */
+  --accent-ink: #fffdf9;
+  --danger: #a23a2a;
+  --radius: 10px;
+  --gutter: 16px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15130f;
+    --surface: #1e1b16;
+    --ink: #f1ebe1;
+    --muted: #a59b8e;
+    --line: #34302a;
+    --accent: #d08a5c;
+    --accent-ink: #15130f;
+  }
+}
+
+@media (min-width: 720px) {
+  :root {
+    --gutter: 32px;
+  }
+}
