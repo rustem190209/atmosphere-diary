@@ -30,6 +30,6 @@ export async function clearDiary(): Promise<void> {
   await clear(days());
 }
 
-export function newDayId(): string {
-  return `${new Date().toLocaleDateString("sv-SE")}-${Math.random().toString(36).slice(2, 8)}`;
+export function newDayId(createdAt?: string): string {
+  return `${new Date(createdAt ?? Date.now()).toLocaleDateString("sv-SE")}-${Math.random().toString(36).slice(2, 8)}`;
 }

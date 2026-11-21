@@ -4,14 +4,34 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { DayRecord } from "@/lib/schema";
 import { clearDiary, listDays } from "@/lib/storage/db";
+import { demoAlreadySeeded, seedDemoDays } from "@/lib/demo/seed";
 
 export default function ArchivePage() {
   const [days, setDays] = useState<DayRecord[] | null>(null);
   const [query, setQuery] = useState("");
 
+  const [seeding, setSeeding] = useState("");
+
+  // Загрузить примеры дней (при первом запуске — автоматически)
+  async function addDemo() {
+    setSeeding("Добавляю примеры дней…");
+    try {
+      await seedDemoDays((done, total) =>
+        setSeeding(`Добавляю примеры дней: ${done} из ${total}…`),
+      );
+      setDays(await listDays());
+    } catch (e) {
+      console.error(e);
+    }
+    setSeeding("");
+  }
+
   useEffect(() => {
     listDays()
-      .then(setDays)
+      .then((list) => {
+        setDays(list);
+        if (list.length === 0 && !demoAlreadySeeded()) addDemo();
+      })
       .catch(() => setDays([]));
   }, []);
 
@@ -53,9 +73,14 @@ export default function ArchivePage() {
       />
 
       {days === null && <p className="muted">Загружаю…</p>}
-      {days?.length === 0 && (
+      {seeding && <p className="muted">{seeding}</p>}
+      {days?.length === 0 && !seeding && (
         <p className="muted">
-          Пока пусто. <Link href="/">Соберите первый день</Link>.
+          Пока пусто. <Link href="/">Соберите первый день</Link> или{" "}
+          <button className="link-btn" onClick={addDemo}>
+            добавьте примеры
+          </button>
+          .
         </p>
       )}
 
@@ -69,6 +94,7 @@ export default function ArchivePage() {
               <div className="card-empty" />
             )}
             <span className="card-title">{d.title}</span>
+            {d.demo && <span className="card-badge">пример</span>}
             <span className="card-date">
               {new Date(d.createdAt).toLocaleDateString("ru-RU", {
                 day: "numeric",

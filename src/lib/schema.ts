@@ -181,6 +181,7 @@ export interface DayRecord {
   style: StyleParams;
   voice?: Blob;
   poster?: Blob;
+  demo?: boolean; // встроенный пример, а не запись пользователя
 }
 
 // Ограничить число диапазоном (по умолчанию 0..1)

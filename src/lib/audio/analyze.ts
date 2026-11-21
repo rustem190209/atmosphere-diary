@@ -11,6 +11,8 @@ export interface SongMeta {
   year?: number;
   genre?: string;
   mood?: SongMood;
+  bpm?: number; // известный темп (например, у сгенерированного демо-трека)
+  mode?: "major" | "minor"; // известный лад
 }
 
 // Анализируем отрезок из середины песни (там обычно припев, а не тихое вступление)
@@ -39,6 +41,11 @@ export async function analyzeAudioFile(
       bpmConfidence = 0.8;
     } catch {
       /* тихая или очень неровная запись — оставляем запасные значения */
+    }
+    // Если темп известен заранее (указан пользователем или у демо-трека) — он точнее детектора
+    if (meta.bpm) {
+      bpm = meta.bpm;
+      bpmConfidence = 1;
     }
 
     // Энергия (RMS) и «яркость» (доля пересечений нуля — чем выше, тем звонче звук)
@@ -69,7 +76,7 @@ export async function analyzeAudioFile(
       bpmConfidence,
       energy: +clamp(0.65 * loudness + 0.35 * tempoNorm).toFixed(2),
       brightness: +clamp(zcr / 0.12).toFixed(2),
-      mode: "unknown", // лад надёжно без ИИ не определить — честно ставим «неизвестно»
+      mode: meta.mode ?? "unknown", // лад надёжно без ИИ не определить — без подсказки ставим «неизвестно»
       source: "file",
       estimated: bpmConfidence < 0.5,
     };
@@ -138,7 +145,7 @@ export function estimateAudioFromMeta(
     bpmConfidence: confidence,
     energy: +clamp(energy).toFixed(2),
     brightness: +clamp(brightness).toFixed(2),
-    mode: "unknown",
+    mode: meta.mode ?? "unknown",
     source: "link",
     estimated: true,
     embedUrl,

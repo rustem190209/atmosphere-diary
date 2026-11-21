@@ -1,6 +1,18 @@
 "use client";
 // Плеер воспоминания: холст 9:16 + музыка. Звук включается только по кнопке Play.
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
+import {
+  canNarrate,
+  narrate,
+  stopNarration,
+  VOICE_PROFILES,
+} from "@/lib/voice/narrate";
 import type { DayRecord } from "@/lib/schema";
 import type { Scene } from "@/lib/render/types";
 import { H, W } from "@/lib/render/types";
@@ -17,6 +29,14 @@ export default function ScenePlayer({ day }: { day: DayRecord }) {
   const [playing, setPlaying] = useState(false);
   const [showEmbed, setShowEmbed] = useState(false);
   const [loadError, setLoadError] = useState("");
+  const [speaking, setSpeaking] = useState(false);
+  const speakingRef = useRef(false);
+  // Синтез речи есть только в браузере; на сервере кнопку не показываем
+  const voiceOk = useSyncExternalStore(
+    () => () => {},
+    canNarrate,
+    () => false,
+  );
 
   const duration = day.style.timeline.duration;
 
@@ -45,6 +65,7 @@ export default function ScenePlayer({ day }: { day: DayRecord }) {
       sceneRef.current = null;
       audioCtxRef.current?.close();
       audioCtxRef.current = null;
+      stopNarration();
     };
   }, [day, duration]);
 
@@ -116,9 +137,11 @@ export default function ScenePlayer({ day }: { day: DayRecord }) {
         for (const v of buf) sum += ((v - 128) / 128) ** 2;
         amp = Math.min(1, Math.sqrt(sum / buf.length) * 3);
       }
-      // Музыка мягко затихает на финальном кадре
-      if (a && songSrc && t > duration - 2)
-        a.volume = Math.max(0, (duration - t) / 2);
+      // Под озвучкой музыка тише на 12 дБ (×0.25); на финальном кадре мягко затихает
+      if (a && songSrc) {
+        const fade = t > duration - 2 ? Math.max(0, (duration - t) / 2) : 1;
+        a.volume = fade * (speakingRef.current ? 0.25 : 1);
+      }
       drawFrame(ctx, s, { t, amp });
       if (t < duration) rafRef.current = requestAnimationFrame(tick);
       else {
@@ -133,6 +156,20 @@ export default function ScenePlayer({ day }: { day: DayRecord }) {
     cancelAnimationFrame(rafRef.current);
     audioRef.current?.pause();
     setPlaying(false);
+  }
+
+  function toggleVoice() {
+    if (speaking) return stopNarration();
+    narrate(day.input.text, day.mood.narrationTone, {
+      onStart: () => {
+        speakingRef.current = true;
+        setSpeaking(true);
+      },
+      onEnd: () => {
+        speakingRef.current = false;
+        setSpeaking(false);
+      },
+    });
   }
 
   const embedSrc = day.audio.embedUrl
@@ -169,7 +206,21 @@ export default function ScenePlayer({ day }: { day: DayRecord }) {
         ) : (
           <span className="hint">{duration} секунд · звук по кнопке ▶</span>
         )}
+        {voiceOk && (
+          <button
+            onClick={toggleVoice}
+            title={`Голос: ${VOICE_PROFILES[day.mood.narrationTone].label}`}
+          >
+            {speaking ? "■ Остановить озвучку" : "🔊 Озвучить запись"}
+          </button>
+        )}
       </div>
+      {voiceOk && (
+        <span className="hint">
+          Голос: {VOICE_PROFILES[day.mood.narrationTone].label}{" "}
+          (синтезированный)
+        </span>
+      )}
       {songSrc && <audio ref={audioRef} src={songSrc} preload="auto" />}
       {day.audio.source === "link" && day.input.songUrl && (
         <div className="embed">

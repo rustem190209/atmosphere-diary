@@ -21,6 +21,8 @@ export interface DayInput {
     | { kind: "link"; url: string; meta: SongMeta };
   checkIn?: CheckIn;
   consent: boolean;
+  createdAt?: string; // дата дня (для демо-дней — в прошлом)
+  demo?: boolean;
 }
 
 export type Step = "text" | "photo" | "music" | "draw" | "save";
@@ -109,8 +111,9 @@ export async function buildDay(
   const mood = fuse(textMood, input.checkIn);
   const style = mapToStyle(mood, photo, audio, input.checkIn);
   const day: DayRecord = {
-    id: newDayId(),
-    createdAt: new Date().toISOString(),
+    id: newDayId(input.createdAt),
+    createdAt: input.createdAt ?? new Date().toISOString(),
+    demo: input.demo,
     title: mood.title,
     input: {
       text: input.text,
