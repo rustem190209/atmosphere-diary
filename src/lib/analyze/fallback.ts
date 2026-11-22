@@ -157,6 +157,7 @@ const EMOTION_STEMS: Record<Emotion, string[]> = {
     "сил нет",
     "без сил",
   ],
+  hope: ["надеж", "надея", "надеюсь", "мечта", "мечтаю", "верю", "впереди", "начало", "завтра будет"],
 };
 
 // Типичное «звучание» эмоции: valence (-1..1), энергия, напряжение, теплота (0..1)
@@ -173,6 +174,7 @@ export const EMOTION_DIMS: Record<Emotion, [number, number, number, number]> = {
   loneliness: [-0.6, 0.15, 0.35, 0.25],
   tension: [-0.3, 0.8, 0.9, 0.25],
   fatigue: [-0.3, 0.15, 0.5, 0.35],
+  hope: [0.6, 0.45, 0.15, 0.6],
 };
 
 export const ATMOSPHERE: Record<Emotion, string> = {
@@ -188,6 +190,7 @@ export const ATMOSPHERE: Record<Emotion, string> = {
   loneliness: "одиночество",
   tension: "напряжённый фокус",
   fatigue: "усталость",
+  hope: "тихая надежда",
 };
 
 // Прилагательное настроения для названия (мужской род, остальные формы строим функцией adj)
@@ -204,6 +207,7 @@ const MOOD_ADJ: Record<Emotion, string> = {
   loneliness: "одинокий",
   tension: "напряжённый",
   fatigue: "долгий",
+  hope: "светлый",
 };
 
 const WARM_WORDS = [

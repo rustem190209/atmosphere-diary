@@ -1,4 +1,4 @@
-# Дневник атмосферы дня
+# Атмосфера — кинематографичный дневник дня
 
 Прототип для GENESIS Hackathon 2026, кейс ArtTech «Make the Invisible Visible».
 

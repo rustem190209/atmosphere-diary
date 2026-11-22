@@ -1,5 +1,11 @@
 // Полный путь дня: ввод → анализ (текст, фото, музыка) → слияние → стиль → постер → сохранение.
-import type { AudioSpec, CheckIn, DayRecord, MoodSpec, PhysioContext } from "./schema";
+import type {
+  AudioSpec,
+  CheckIn,
+  DayRecord,
+  MoodSpec,
+  PhysioContext,
+} from "./schema";
 import { MoodSpecSchema } from "./schema";
 import { analyzePhotos, resizeImage } from "./photo/analyze";
 import {
@@ -18,7 +24,8 @@ export interface DayInput {
   photos: File[];
   song:
     | { kind: "file"; file: File; meta: SongMeta }
-    | { kind: "link"; url: string; meta: SongMeta };
+    | { kind: "link"; url: string; meta: SongMeta }
+    | { kind: "meta"; meta: SongMeta }; // только название и исполнитель, без ссылки и файла
   checkIn?: CheckIn;
   physio?: PhysioContext; // пульс: демо-данные или импорт JSON
   consent: boolean;
@@ -98,6 +105,9 @@ export async function buildDay(
       // Файл не удалось декодировать — оцениваем по описанию, но музыку всё равно сохраним
       audio = { ...estimateAudioFromMeta(meta), source: "file" };
     }
+  } else if (input.song.kind === "meta") {
+    // Только название и исполнитель: параметры песни оцениваем по описанию (помечено «оценочно»)
+    audio = estimateAudioFromMeta(input.song.meta);
   } else {
     songUrl = input.song.url;
     const fetched = await songMetaFromLink(input.song.url);

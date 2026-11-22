@@ -70,7 +70,7 @@ export function drawConstants(
   ctx.textAlign = "left";
   ctx.fillText(s.dateLabel.toUpperCase(), MARGIN, 140);
   ctx.textAlign = "right";
-  ctx.fillText("ДНЕВНИК АТМОСФЕРЫ", W - MARGIN, 140);
+  ctx.fillText("АТМОСФЕРА", W - MARGIN, 140);
   setSpacing(ctx, 0);
 
   // Название — под фото

@@ -17,8 +17,8 @@ const hand = Marck_Script({
 });
 
 export const metadata: Metadata = {
-  title: "Дневник атмосферы дня",
-  description: "Текст, фото и песня превращаются в воспоминание о дне",
+  title: "Атмосфера — кинодневник",
+  description: "Кинематографичные воспоминания из текста, фото и музыки вашего дня",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -30,14 +30,24 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body>
         <header className="site-header">
           <Link href="/" className="logo">
-            Дневник атмосферы
+            Атмосфера <span>кинодневник</span>
           </Link>
           <nav>
-            <Link href="/">Новый день</Link>
+            <Link href="/">Главная</Link>
             <Link href="/archive">Архив</Link>
+            <Link href="/create" className="cta">
+              Создать
+            </Link>
           </nav>
         </header>
         <main className="site-main">{children}</main>
+        <footer className="site-footer">
+          <span className="hint">
+            Атмосфера — кинематографичный дневник дня. Прототип для GENESIS
+            Hackathon 2026.
+          </span>
+          <span className="hint">Интерпретация настроения, а не диагноз.</span>
+        </footer>
       </body>
     </html>
   );

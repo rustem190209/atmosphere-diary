@@ -1,27 +1,43 @@
 "use client";
-// Форма «Новый день» (раздел 3 и 8.1 ТЗ): текст, фото, песня, чек-ин, согласие.
-import { useEffect, useMemo, useState } from "react";
+// Экран «Создать воспоминание»: дневник, фото, музыка, чувства (+ уточнения и пульс), затем экран анализа.
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  EMOTIONS,
   EMOTION_LABELS,
   type CheckIn,
   type Emotion,
+  type PhysioContext,
 } from "@/lib/schema";
 import type { SongMood } from "@/lib/audio/analyze";
-import { buildDay, type Step } from "@/lib/pipeline";
-import type { PhysioContext } from "@/lib/schema";
-import { DEMO_PULSE_LABELS, demoPulse, parsePulseJson, pulseLabel, type DemoPulse } from "@/lib/physio";
+import { buildDay, type DayInput, type Step } from "@/lib/pipeline";
+import {
+  DEMO_PULSE_LABELS,
+  demoPulse,
+  parsePulseJson,
+  pulseLabel,
+  type DemoPulse,
+} from "@/lib/physio";
+import AnalysisOverlay from "@/components/AnalysisOverlay";
 
 const MAX_PHOTOS = 6;
 const MAX_PHOTO_MB = 10;
 const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
-const STEPS: { key: Step; label: string }[] = [
-  { key: "text", label: "Читаю текст" },
-  { key: "photo", label: "Смотрю фото" },
-  { key: "music", label: "Слушаю песню" },
-  { key: "draw", label: "Рисую" },
-  { key: "save", label: "Сохраняю" },
+const MAX_EMOTIONS = 3;
+// Порядок чувств: сначала самые частые
+const EMOTION_ORDER: Emotion[] = [
+  "nostalgia",
+  "melancholy",
+  "joy",
+  "calm",
+  "excitement",
+  "gratitude",
+  "loneliness",
+  "hope",
+  "tenderness",
+  "wonder",
+  "pride",
+  "tension",
+  "fatigue",
 ];
 
 function Scale({
@@ -54,32 +70,43 @@ function Scale({
   );
 }
 
+const DEFAULT_SCALES = {
+  intensity: 3,
+  tension: 3,
+  satisfaction: 3,
+  wouldRelive: 3,
+} as const;
+
 export default function DayForm() {
   const router = useRouter();
   const [text, setText] = useState("");
   const [photos, setPhotos] = useState<File[]>([]);
   const [photoError, setPhotoError] = useState("");
+  const [drag, setDrag] = useState(false);
   const [songTab, setSongTab] = useState<"link" | "file">("link");
+  const [artist, setArtist] = useState("");
+  const [songTitle, setSongTitle] = useState("");
   const [songUrl, setSongUrl] = useState("");
   const [songFile, setSongFile] = useState<File | null>(null);
-  const [songTitle, setSongTitle] = useState("");
   const [songYear, setSongYear] = useState("");
   const [songGenre, setSongGenre] = useState("");
   const [songMood, setSongMood] = useState<SongMood>("");
-  const [useCheckIn, setUseCheckIn] = useState(false);
-  const [checkIn, setCheckIn] = useState<CheckIn>({
-    intensity: 3,
-    emotions: [],
-    tension: 3,
-    satisfaction: 3,
-    wouldRelive: 3,
-  });
-  const [consent, setConsent] = useState(true);
-  const [step, setStep] = useState<Step | null>(null);
-  const [error, setError] = useState("");
-  const [formKey, setFormKey] = useState(0);
+  const [emotions, setEmotions] = useState<Emotion[]>([]);
+  const [scales, setScales] = useState<{
+    intensity: number;
+    tension: number;
+    satisfaction: number;
+    wouldRelive: number;
+  }>({ ...DEFAULT_SCALES });
+  const [scalesTouched, setScalesTouched] = useState(false);
   const [physio, setPhysio] = useState<PhysioContext | undefined>();
   const [pulseError, setPulseError] = useState("");
+  const [consent, setConsent] = useState(true);
+  const [step, setStep] = useState<Step | null>(null);
+  const [running, setRunning] = useState(false);
+  const [doneId, setDoneId] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  const [formKey, setFormKey] = useState(0);
 
   // Превью фото: временные ссылки на файлы, удаляем при смене списка
   const previews = useMemo(
@@ -91,7 +118,7 @@ export default function DayForm() {
     [previews],
   );
 
-  function addPhotos(list: FileList | null) {
+  function addPhotos(list: FileList | File[] | null) {
     if (!list) return;
     setPhotoError("");
     const next = [...photos];
@@ -114,345 +141,465 @@ export default function DayForm() {
   }
 
   function toggleEmotion(e: Emotion) {
-    setCheckIn((c) => {
-      if (c.emotions.includes(e))
-        return { ...c, emotions: c.emotions.filter((x) => x !== e) };
-      if (c.emotions.length >= 3) return c; // не больше трёх
-      return { ...c, emotions: [...c.emotions, e] };
-    });
+    setEmotions((list) =>
+      list.includes(e)
+        ? list.filter((x) => x !== e)
+        : list.length >= MAX_EMOTIONS
+          ? list
+          : [...list, e],
+    );
   }
 
+  const setScale = (k: keyof typeof scales) => (v: number) => {
+    setScales((s) => ({ ...s, [k]: v }));
+    setScalesTouched(true);
+  };
+
+  const linkOk = /^https?:\/\/\S+$/.test(songUrl.trim());
   const hasSong =
-    songTab === "link" ? /^https?:\/\/\S+$/.test(songUrl.trim()) : !!songFile;
+    songTab === "file"
+      ? !!songFile
+      : linkOk || !!(songTitle.trim() || artist.trim());
   const problems = [
-    text.trim().length < 20 &&
-      "напишите о дне хотя бы пару предложений (от 20 символов)",
-    photos.length === 0 && "добавьте хотя бы одно фото",
+    text.trim().length < 20 && "расскажите о дне хотя бы в паре предложений",
+    photos.length === 0 && "добавьте хотя бы одну фотографию",
     !hasSong &&
-      (songTab === "link" ? "вставьте ссылку на песню" : "выберите аудиофайл"),
+      (songTab === "file"
+        ? "выберите аудиофайл"
+        : "укажите песню: название и исполнителя или ссылку"),
+    songTab === "link" &&
+      songUrl.trim() &&
+      !linkOk &&
+      "ссылка на песню должна начинаться с http",
   ].filter(Boolean) as string[];
 
   function resetForm() {
     setText("");
     setPhotos([]);
     setPhotoError("");
+    setArtist("");
+    setSongTitle("");
     setSongUrl("");
     setSongFile(null);
-    setSongTitle("");
     setSongYear("");
     setSongGenre("");
     setSongMood("");
-    setUseCheckIn(false);
-    setCheckIn({
-      intensity: 3,
-      emotions: [],
-      tension: 3,
-      satisfaction: 3,
-      wouldRelive: 3,
-    });
-    setStep(null);
-    setError("");
+    setEmotions([]);
+    setScales({ ...DEFAULT_SCALES });
+    setScalesTouched(false);
     setPhysio(undefined);
     setPulseError("");
-    setFormKey((k) => k + 1); // пересоздать поля выбора файлов
+    setStep(null);
+    setError("");
+    setFormKey((k) => k + 1);
   }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (problems.length || step) return;
+    if (problems.length || running) return;
     setError("");
-    const [artist, title] =
-      songTitle.includes("—") || songTitle.includes(" - ")
-        ? songTitle.split(/\s+[—-]\s+/, 2).map((s) => s.trim())
-        : ["", songTitle.trim()];
+    setRunning(true);
+    setDoneId(null);
     const meta = {
-      title: title || undefined,
-      artist: artist || undefined,
+      title: songTitle.trim() || undefined,
+      artist: artist.trim() || undefined,
       year: Number(songYear) > 1900 ? Number(songYear) : undefined,
       genre: songGenre.trim() || undefined,
       mood: songMood,
     };
+    const song: DayInput["song"] =
+      songTab === "file" && songFile
+        ? { kind: "file", file: songFile, meta }
+        : linkOk
+          ? { kind: "link", url: songUrl.trim(), meta }
+          : { kind: "meta", meta };
+    // Чек-ин есть, если выбраны чувства или тронуты шкалы
+    const checkIn: CheckIn | undefined =
+      emotions.length || scalesTouched
+        ? ({ ...scales, emotions } as CheckIn)
+        : undefined;
     try {
       const day = await buildDay(
-        {
-          text: text.trim(),
-          photos,
-          song:
-            songTab === "file" && songFile
-              ? { kind: "file", file: songFile, meta }
-              : { kind: "link", url: songUrl.trim(), meta },
-          checkIn: useCheckIn ? checkIn : undefined,
-          physio,
-          consent,
-        },
+        { text: text.trim(), photos, song, checkIn, physio, consent },
         setStep,
       );
-      // Next.js сохраняет состояние страницы при возврате назад — очищаем форму для следующего дня
-      resetForm();
-      router.push(`/day/${day.id}`);
+      setDoneId(day.id);
     } catch (err) {
       console.error(err);
       setError(err instanceof Error ? err.message : "Что-то пошло не так");
+      setRunning(false);
       setStep(null);
     }
   }
 
-  return (
-    <form key={formKey} className="day-form" onSubmit={submit}>
-      <label className="field">
-        <span className="field-label">Как прошёл день?</span>
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          rows={7}
-          placeholder="Пишите как близкому другу: погода, свет, запахи, звуки, кто был рядом, что запомнилось…"
-        />
-        <span className="hint">{text.trim().length} символов</span>
-      </label>
+  // Экран анализа закончил показ этапов — открываем готовое воспоминание
+  const finish = useCallback(() => {
+    if (!doneId) return;
+    const id = doneId;
+    resetForm();
+    setRunning(false);
+    setDoneId(null);
+    router.push(`/day/${id}`);
+  }, [doneId, router]);
 
-      <div className="field">
-        <span className="field-label">Фото дня (1–6)</span>
-        <div className="photo-grid">
-          {previews.map((src, k) => (
-            <div className="photo-thumb" key={src}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={src} alt={`Фото ${k + 1}`} />
+  return (
+    <>
+      {running && (
+        <AnalysisOverlay
+          step={step}
+          done={!!doneId}
+          photo={previews[0]}
+          onFinished={finish}
+        />
+      )}
+      <form key={formKey} className="day-form" onSubmit={submit}>
+        <section className="form-step">
+          <header>
+            <span className="num">01</span>
+            <h3>Дневник</h3>
+            <p className="hint">
+              Свободным текстом. Погода, свет, звуки, кто был рядом.
+            </p>
+          </header>
+          <div className="body">
+            <textarea
+              className="journal"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="Сегодня мы гуляли по парку, всё было в жёлтых листьях…"
+              aria-label="Запись о дне"
+            />
+            <span className="hint">
+              {text.trim().length} символов
+              {text.trim().length < 20 ? " · минимум 20" : ""}
+            </span>
+          </div>
+        </section>
+
+        <section className="form-step">
+          <header>
+            <span className="num">02</span>
+            <h3>Фотографии</h3>
+            <p className="hint">
+              От 1 до 6 кадров. Палитра фильма берётся из них.
+            </p>
+          </header>
+          <div className="body">
+            <div className="photo-grid">
+              {previews.map((src, k) => (
+                <div className="photo-thumb" key={src}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={src} alt={`Фото ${k + 1}`} />
+                  <button
+                    type="button"
+                    className="x"
+                    aria-label={`Убрать фото ${k + 1}`}
+                    onClick={() => setPhotos(photos.filter((_, j) => j !== k))}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              {photos.length < MAX_PHOTOS && (
+                <label
+                  className={drag ? "photo-add drag" : "photo-add"}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDrag(true);
+                  }}
+                  onDragLeave={() => setDrag(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDrag(false);
+                    addPhotos(e.dataTransfer.files);
+                  }}
+                >
+                  <input
+                    type="file"
+                    accept={PHOTO_TYPES.join(",")}
+                    multiple
+                    onChange={(e) => {
+                      addPhotos(e.target.files);
+                      e.target.value = "";
+                    }}
+                  />
+                  <span className="plus">+</span>
+                  <span>
+                    Добавить фото
+                    <br />
+                    или перетащить сюда
+                  </span>
+                </label>
+              )}
+            </div>
+            {photoError && <span className="error">{photoError}</span>}
+          </div>
+        </section>
+
+        <section className="form-step">
+          <header>
+            <span className="num">03</span>
+            <h3>Музыка</h3>
+            <p className="hint">
+              Песня, которая звучала в этот день. Ритм монтажа идёт от неё.
+            </p>
+          </header>
+          <div className="body">
+            <div className="row">
+              <input
+                className="field-input"
+                value={songTitle}
+                onChange={(e) => setSongTitle(e.target.value)}
+                placeholder="Название песни"
+                aria-label="Название песни"
+              />
+              <input
+                className="field-input"
+                value={artist}
+                onChange={(e) => setArtist(e.target.value)}
+                placeholder="Исполнитель"
+                aria-label="Исполнитель"
+              />
+            </div>
+            <div className="seg" role="tablist" aria-label="Источник песни">
               <button
                 type="button"
-                aria-label="Убрать фото"
-                onClick={() => setPhotos(photos.filter((_, j) => j !== k))}
+                role="tab"
+                aria-selected={songTab === "link"}
+                className={songTab === "link" ? "on" : ""}
+                onClick={() => setSongTab("link")}
               >
-                ×
+                Ссылка
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={songTab === "file"}
+                className={songTab === "file" ? "on" : ""}
+                onClick={() => setSongTab("file")}
+              >
+                Свой файл
               </button>
             </div>
-          ))}
-          {photos.length < MAX_PHOTOS && (
-            <label className="photo-add">
+            {songTab === "link" ? (
               <input
-                type="file"
-                accept={PHOTO_TYPES.join(",")}
-                multiple
-                onChange={(e) => {
-                  addPhotos(e.target.files);
-                  e.target.value = "";
-                }}
+                className="field-input"
+                type="url"
+                value={songUrl}
+                onChange={(e) => setSongUrl(e.target.value)}
+                placeholder="Ссылка YouTube или Spotify (необязательно)"
+                aria-label="Ссылка на песню"
               />
-              <span>+ фото</span>
+            ) : (
+              <label className="file-pick">
+                <input
+                  type="file"
+                  accept="audio/mpeg,audio/mp4,audio/x-m4a,audio/wav,audio/*"
+                  onChange={(e) => setSongFile(e.target.files?.[0] ?? null)}
+                />
+                {songFile
+                  ? `♪ ${songFile.name}`
+                  : "Выбрать mp3, m4a или wav — файл останется только в вашем браузере"}
+              </label>
+            )}
+            <details className="more">
+              <summary>Год, жанр и характер песни</summary>
+              <div>
+                <div className="row">
+                  <input
+                    className="field-input short"
+                    value={songYear}
+                    onChange={(e) =>
+                      setSongYear(e.target.value.replace(/\D/g, "").slice(0, 4))
+                    }
+                    placeholder="Год"
+                    inputMode="numeric"
+                    aria-label="Год"
+                  />
+                  <input
+                    className="field-input"
+                    value={songGenre}
+                    onChange={(e) => setSongGenre(e.target.value)}
+                    placeholder="Жанр"
+                    aria-label="Жанр"
+                  />
+                </div>
+                <div className="chips" aria-label="Характер песни">
+                  {(
+                    [
+                      ["calm", "спокойная"],
+                      ["medium", "средняя"],
+                      ["energetic", "энергичная"],
+                    ] as const
+                  ).map(([k, l]) => (
+                    <button
+                      type="button"
+                      key={k}
+                      className={songMood === k ? "chip on" : "chip"}
+                      onClick={() => setSongMood(songMood === k ? "" : k)}
+                    >
+                      {l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </details>
+            <span className="hint">
+              {songTab === "link"
+                ? "Песню мы не скачиваем. Если ссылки нет, при просмотре зазвучит саундтрек, который система подберёт по настроению дня."
+                : "Из файла считаем темп и энергию."}
+            </span>
+          </div>
+        </section>
+
+        <section className="form-step">
+          <header>
+            <span className="num">04</span>
+            <h3>Чувства</h3>
+            <p className="hint">
+              Выберите до трёх. День редко бывает чем-то одним.
+            </p>
+          </header>
+          <div className="body">
+            <div className="chips emotion-chips" aria-label="Чувства дня">
+              {EMOTION_ORDER.map((e) => (
+                <button
+                  type="button"
+                  key={e}
+                  className={emotions.includes(e) ? "chip on" : "chip"}
+                  aria-pressed={emotions.includes(e)}
+                  disabled={
+                    !emotions.includes(e) && emotions.length >= MAX_EMOTIONS
+                  }
+                  onClick={() => toggleEmotion(e)}
+                >
+                  {EMOTION_LABELS[e]}
+                </button>
+              ))}
+            </div>
+            <details className="more">
+              <summary>Уточнить: насыщенность, напряжение, пульс</summary>
+              <div>
+                <Scale
+                  label="Насколько насыщенным был день"
+                  value={scales.intensity}
+                  onChange={setScale("intensity")}
+                />
+                <Scale
+                  label="Внутреннее напряжение"
+                  value={scales.tension}
+                  onChange={setScale("tension")}
+                />
+                <Scale
+                  label="Удовлетворённость днём"
+                  value={scales.satisfaction}
+                  onChange={setScale("satisfaction")}
+                />
+                <Scale
+                  label="Хотели бы пережить снова"
+                  value={scales.wouldRelive}
+                  onChange={setScale("wouldRelive")}
+                />
+                <span className="hint">
+                  Пульс — контекст для ритма и «ударов» камеры. Эмоции по пульсу
+                  не определяются.
+                </span>
+                <div className="chips">
+                  {(Object.keys(DEMO_PULSE_LABELS) as DemoPulse[]).map((k) => (
+                    <button
+                      type="button"
+                      key={k}
+                      className={
+                        physio?.kind === "demo" &&
+                        physio.avgHr === demoPulse(k).avgHr
+                          ? "chip on"
+                          : "chip"
+                      }
+                      onClick={() => {
+                        setPhysio(demoPulse(k));
+                        setPulseError("");
+                      }}
+                    >
+                      Демо-пульс: {DEMO_PULSE_LABELS[k]}
+                    </button>
+                  ))}
+                  <label className="chip file-chip">
+                    Загрузить JSON
+                    <input
+                      type="file"
+                      accept="application/json,.json"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        try {
+                          setPhysio(parsePulseJson(await file.text()));
+                          setPulseError("");
+                        } catch (err) {
+                          setPulseError(
+                            err instanceof Error
+                              ? err.message
+                              : "Не удалось прочитать файл",
+                          );
+                        }
+                      }}
+                    />
+                  </label>
+                  {physio && (
+                    <button
+                      type="button"
+                      className="chip"
+                      onClick={() => setPhysio(undefined)}
+                    >
+                      Убрать пульс
+                    </button>
+                  )}
+                </div>
+                {physio && (
+                  <span className="hint">
+                    Пульс: {pulseLabel(physio)} · средний {physio.avgHr}, пик{" "}
+                    {physio.maxHr} уд/мин
+                  </span>
+                )}
+                {pulseError && <span className="error">{pulseError}</span>}
+              </div>
+            </details>
+          </div>
+        </section>
+
+        <div className="submit-bar">
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 10,
+              maxWidth: 520,
+            }}
+          >
+            <label className="consent">
+              <input
+                type="checkbox"
+                checked={consent}
+                onChange={(e) => setConsent(e.target.checked)}
+              />
+              <span>
+                Можно отправить текст на наш сервер для анализа. Без галочки
+                анализ пройдёт прямо в браузере.
+              </span>
             </label>
-          )}
-        </div>
-        {photoError && <span className="error">{photoError}</span>}
-      </div>
-
-      <div className="field">
-        <span className="field-label">Песня дня</span>
-        <div className="tabs" role="tablist">
+            {problems.length > 0 && (
+              <span className="hint">Осталось: {problems.join("; ")}.</span>
+            )}
+            {error && <span className="error">Не получилось: {error}</span>}
+          </div>
           <button
-            type="button"
-            role="tab"
-            aria-selected={songTab === "link"}
-            className={songTab === "link" ? "on" : ""}
-            onClick={() => setSongTab("link")}
+            type="submit"
+            className="btn btn-primary"
+            disabled={problems.length > 0 || running}
           >
-            Ссылка
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={songTab === "file"}
-            className={songTab === "file" ? "on" : ""}
-            onClick={() => setSongTab("file")}
-          >
-            Файл
+            Создать моё воспоминание <span className="arrow">→</span>
           </button>
         </div>
-        {songTab === "link" ? (
-          <input
-            type="url"
-            value={songUrl}
-            onChange={(e) => setSongUrl(e.target.value)}
-            placeholder="https://youtube.com/… или https://open.spotify.com/track/…"
-          />
-        ) : (
-          <input
-            type="file"
-            accept="audio/mpeg,audio/mp4,audio/x-m4a,audio/wav,audio/*"
-            onChange={(e) => setSongFile(e.target.files?.[0] ?? null)}
-          />
-        )}
-        <div className="row">
-          <input
-            value={songTitle}
-            onChange={(e) => setSongTitle(e.target.value)}
-            placeholder="Исполнитель — название (необязательно)"
-          />
-          <input
-            value={songYear}
-            onChange={(e) =>
-              setSongYear(e.target.value.replace(/\D/g, "").slice(0, 4))
-            }
-            placeholder="Год"
-            inputMode="numeric"
-            className="short"
-          />
-          <input
-            value={songGenre}
-            onChange={(e) => setSongGenre(e.target.value)}
-            placeholder="Жанр"
-            className="short"
-          />
-        </div>
-        <div className="chips" aria-label="Характер песни">
-          <span className="hint">Характер песни:</span>
-          {(
-            [
-              ["calm", "спокойная"],
-              ["medium", "средняя"],
-              ["energetic", "энергичная"],
-            ] as const
-          ).map(([k, l]) => (
-            <button
-              type="button"
-              key={k}
-              className={songMood === k ? "chip on" : "chip"}
-              onClick={() => setSongMood(songMood === k ? "" : k)}
-            >
-              {l}
-            </button>
-          ))}
-        </div>
-        <span className="hint">
-          {songTab === "link"
-            ? "Песню мы не скачиваем: она играет во встроенном плеере сервиса. Темп оцениваем по жанру и характеру."
-            : "Файл остаётся только в вашем браузере. Из него считаем темп и энергию."}
-        </span>
-      </div>
-
-      <details
-        className="field checkin"
-        open={useCheckIn}
-        onToggle={(e) => setUseCheckIn((e.target as HTMLDetailsElement).open)}
-      >
-        <summary>Чек-ин настроения (необязательно, ~20 секунд)</summary>
-        <Scale
-          label="Насколько насыщенным был день"
-          value={checkIn.intensity}
-          onChange={(v) =>
-            setCheckIn({ ...checkIn, intensity: v as CheckIn["intensity"] })
-          }
-        />
-        <div className="chips">
-          <span className="hint">Что чувствовали (до 3):</span>
-          {EMOTIONS.map((e) => (
-            <button
-              type="button"
-              key={e}
-              className={checkIn.emotions.includes(e) ? "chip on" : "chip"}
-              disabled={
-                !checkIn.emotions.includes(e) && checkIn.emotions.length >= 3
-              }
-              onClick={() => toggleEmotion(e)}
-            >
-              {EMOTION_LABELS[e]}
-            </button>
-          ))}
-        </div>
-        <Scale
-          label="Внутреннее напряжение"
-          value={checkIn.tension}
-          onChange={(v) =>
-            setCheckIn({ ...checkIn, tension: v as CheckIn["tension"] })
-          }
-        />
-        <Scale
-          label="Удовлетворённость днём"
-          value={checkIn.satisfaction}
-          onChange={(v) =>
-            setCheckIn({
-              ...checkIn,
-              satisfaction: v as CheckIn["satisfaction"],
-            })
-          }
-        />
-        <Scale
-          label="Хотели бы пережить снова"
-          value={checkIn.wouldRelive}
-          onChange={(v) =>
-            setCheckIn({ ...checkIn, wouldRelive: v as CheckIn["wouldRelive"] })
-          }
-        />
-      </details>
-
-      <div className="field pulse">
-        <span className="field-label">Пульс дня (необязательно)</span>
-        <span className="hint">Контекст для ритма анимации и «ударов» камеры. Эмоции по пульсу не определяются.</span>
-        <div className="chips">
-          {(Object.keys(DEMO_PULSE_LABELS) as DemoPulse[]).map((k) => (
-            <button type="button" key={k} className="chip" onClick={() => { setPhysio(demoPulse(k)); setPulseError(""); }}>
-              Демо: {DEMO_PULSE_LABELS[k]}
-            </button>
-          ))}
-          <label className="chip file-chip">
-            Загрузить JSON
-            <input
-              type="file"
-              accept="application/json,.json"
-              onChange={async (e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                try { setPhysio(parsePulseJson(await file.text())); setPulseError(""); }
-                catch (err) { setPulseError(err instanceof Error ? err.message : "Не удалось прочитать файл"); }
-              }}
-            />
-          </label>
-          {physio && <button type="button" className="chip" onClick={() => setPhysio(undefined)}>Убрать</button>}
-        </div>
-        {physio && <span className="hint">Пульс: {pulseLabel(physio)} · средний {physio.avgHr}, пик {physio.maxHr} уд/мин, точек: {physio.series.length}</span>}
-        {pulseError && <span className="error">{pulseError}</span>}
-      </div>
-
-      <label className="consent">
-        <input
-          type="checkbox"
-          checked={consent}
-          onChange={(e) => setConsent(e.target.checked)}
-        />
-        <span>
-          Можно отправить текст на сервер для анализа. Без галочки анализ
-          пройдёт прямо в браузере.
-        </span>
-      </label>
-
-      {problems.length > 0 && (
-        <p className="hint">
-          Чтобы собрать воспоминание: {problems.join("; ")}.
-        </p>
-      )}
-      {error && <p className="error">Не получилось: {error}</p>}
-
-      <button
-        type="submit"
-        className="btn-primary"
-        disabled={problems.length > 0 || !!step}
-      >
-        {step ? "Собираю…" : "Собрать воспоминание"}
-      </button>
-
-      {step && (
-        <ol className="progress">
-          {STEPS.map((s, k) => {
-            const cur = STEPS.findIndex((x) => x.key === step);
-            return (
-              <li
-                key={s.key}
-                className={k < cur ? "done" : k === cur ? "now" : ""}
-              >
-                {s.label}
-              </li>
-            );
-          })}
-        </ol>
-      )}
-    </form>
+      </form>
+    </>
   );
 }

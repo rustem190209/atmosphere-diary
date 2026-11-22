@@ -18,6 +18,7 @@ export const EMOTIONS = [
   "loneliness",
   "tension",
   "fatigue",
+  "hope",
 ] as const;
 export const EmotionSchema = z.enum(EMOTIONS);
 export type Emotion = z.infer<typeof EmotionSchema>;
@@ -36,6 +37,7 @@ export const EMOTION_LABELS: Record<Emotion, string> = {
   loneliness: "одиночество",
   tension: "напряжение",
   fatigue: "усталость",
+  hope: "надежда",
 };
 
 export const CheckInSchema = z.object({
