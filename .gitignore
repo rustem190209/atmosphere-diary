@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# личные рабочие файлы (лежат только локально)
+/docs/art tech.pdf
+/docs/PROMPT.md
