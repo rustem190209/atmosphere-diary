@@ -10,8 +10,9 @@
     "check:fixtures": "npx --yes tsx scripts/check-fixtures.ts",
     "check:analyze": "npx --yes tsx scripts/check-analyze.ts",
     "check:style": "npx --yes tsx scripts/check-style.ts",
-    "check": "npm run check:fixtures && npm run check:analyze && npm run check:style && npm run check:tempo",
-    "check:tempo": "npx --yes tsx scripts/check-tempo.ts"
+    "check": "npm run check:fixtures && npm run check:analyze && npm run check:style && npm run check:tempo && npm run check:v2",
+    "check:tempo": "npx --yes tsx scripts/check-tempo.ts",
+    "check:v2": "node tests/test-music-fusion.mts && node tests/test-camera.mts"
   },
   "dependencies": {
     "idb-keyval": "^6.3.0",

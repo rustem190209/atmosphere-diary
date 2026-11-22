@@ -10,6 +10,8 @@ import {
 } from "@/lib/schema";
 import type { SongMood } from "@/lib/audio/analyze";
 import { buildDay, type Step } from "@/lib/pipeline";
+import type { PhysioContext } from "@/lib/schema";
+import { DEMO_PULSE_LABELS, demoPulse, parsePulseJson, pulseLabel, type DemoPulse } from "@/lib/physio";
 
 const MAX_PHOTOS = 6;
 const MAX_PHOTO_MB = 10;
@@ -76,6 +78,8 @@ export default function DayForm() {
   const [step, setStep] = useState<Step | null>(null);
   const [error, setError] = useState("");
   const [formKey, setFormKey] = useState(0);
+  const [physio, setPhysio] = useState<PhysioContext | undefined>();
+  const [pulseError, setPulseError] = useState("");
 
   // Превью фото: временные ссылки на файлы, удаляем при смене списка
   const previews = useMemo(
@@ -148,6 +152,8 @@ export default function DayForm() {
     });
     setStep(null);
     setError("");
+    setPhysio(undefined);
+    setPulseError("");
     setFormKey((k) => k + 1); // пересоздать поля выбора файлов
   }
 
@@ -176,6 +182,7 @@ export default function DayForm() {
               ? { kind: "file", file: songFile, meta }
               : { kind: "link", url: songUrl.trim(), meta },
           checkIn: useCheckIn ? checkIn : undefined,
+          physio,
           consent,
         },
         setStep,
@@ -375,6 +382,34 @@ export default function DayForm() {
           }
         />
       </details>
+
+      <div className="field pulse">
+        <span className="field-label">Пульс дня (необязательно)</span>
+        <span className="hint">Контекст для ритма анимации и «ударов» камеры. Эмоции по пульсу не определяются.</span>
+        <div className="chips">
+          {(Object.keys(DEMO_PULSE_LABELS) as DemoPulse[]).map((k) => (
+            <button type="button" key={k} className="chip" onClick={() => { setPhysio(demoPulse(k)); setPulseError(""); }}>
+              Демо: {DEMO_PULSE_LABELS[k]}
+            </button>
+          ))}
+          <label className="chip file-chip">
+            Загрузить JSON
+            <input
+              type="file"
+              accept="application/json,.json"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                try { setPhysio(parsePulseJson(await file.text())); setPulseError(""); }
+                catch (err) { setPulseError(err instanceof Error ? err.message : "Не удалось прочитать файл"); }
+              }}
+            />
+          </label>
+          {physio && <button type="button" className="chip" onClick={() => setPhysio(undefined)}>Убрать</button>}
+        </div>
+        {physio && <span className="hint">Пульс: {pulseLabel(physio)} · средний {physio.avgHr}, пик {physio.maxHr} уд/мин, точек: {physio.series.length}</span>}
+        {pulseError && <span className="error">{pulseError}</span>}
+      </div>
 
       <label className="consent">
         <input

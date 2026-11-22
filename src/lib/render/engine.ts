@@ -15,6 +15,8 @@ import {
 } from "./types";
 import { drawBackground } from "./layers/background";
 import { drawPhotoLayer } from "./layers/photo";
+import { preparePhoto } from "./virtualCamera";
+import { cameraPlan } from "./cameraPlan";
 import { drawGeometryLayer } from "./layers/geometry";
 import { drawFilmLayer } from "./layers/film";
 import { drawConstants } from "./layers/constants";
@@ -158,6 +160,8 @@ export async function prepareScene(
   const images = await Promise.all(
     (photoBlobs ?? day.input.photos).map((b) => createImageBitmap(b)),
   );
+  // Подготовка для камеры: точка интереса, размытый фон и резкий объект (один раз на фото)
+  const prepared = images.map((img) => preparePhoto(img, 1280));
   const fonts = readFonts();
   // Ждём загрузки шрифтов, иначе первые кадры нарисуются запасным шрифтом
   await Promise.all([
@@ -193,6 +197,11 @@ export async function prepareScene(
     bpm: day.audio.bpm,
     images,
     strokes: images.map((img) => makeStrokes(img, day, rnd)),
+    prepared,
+    shots: cameraPlan(
+      day,
+      prepared.map((p) => ({ w: p.w, h: p.h, focus: p.focus })),
+    ),
     shapes: makeShapes(day, rnd),
     grain: makeNoise(256, rnd, 0.9),
     paper: makeNoise(512, rnd, 0.35),
@@ -216,7 +225,7 @@ export function drawFrame(
   ctx.save();
   ctx.clearRect(0, 0, W, H);
   drawBackground(ctx, s, t);
-  drawPhotoLayer(ctx, s, { t, amp: f.amp }, beat);
+  drawPhotoLayer(ctx, s, { t, amp: f.amp });
   drawGeometryLayer(ctx, s, t, beat);
   drawFilmLayer(ctx, s, t, f.amp);
   drawConstants(ctx, s, t);
@@ -245,4 +254,3 @@ export async function renderPoster(s: Scene): Promise<Blob> {
     ),
   );
 }
-

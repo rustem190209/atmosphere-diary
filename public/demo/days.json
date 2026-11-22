@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "note": "Демо-дни дневника. Тексты вымышленные. Фото и музыка сгенерированы кодом (scene / synth). Чтобы подставить свои материалы: положите файлы в public/demo/<id>/ и укажите photos: [\"/demo/<id>/1.jpg\"] и song: {\"file\": \"/demo/<id>/song.mp3\"} (только своя музыка или со свободной лицензией) или song: {\"url\": \"ссылка на YouTube/Spotify\"}.",
+  "note": "Демо-дни дневника. Тексты вымышленные. Фото и музыка сгенерированы кодом (scene / synth). Чтобы подставить свои материалы: положите файлы в public/demo/<id>/ и укажите photos: [\"/demo/<id>/1.jpg\"] и song: {\"file\": \"/demo/<id>/song.mp3\"} (только своя музыка или со свободной лицензией) или song: {\"url\": \"ссылка на YouTube/Spotify\"}. Поле physio: \"calm\" | \"active\" | \"tense\" — демо-пульс (помечается в интерфейсе как демо-данные).",
   "days": [
     {
       "id": "autumn-park",
@@ -73,7 +73,8 @@
         "title": "Демо-трек «Сетка»",
         "genre": "электроника",
         "mood": "energetic"
-      }
+      },
+      "physio": "tense"
     },
     {
       "id": "exam-day",
@@ -147,7 +148,8 @@
         "title": "Демо-трек «Капли»",
         "genre": "фортепиано",
         "mood": "calm"
-      }
+      },
+      "physio": "calm"
     },
     {
       "id": "grandma-album",
@@ -231,7 +233,8 @@
         "tension": 1,
         "satisfaction": 5,
         "wouldRelive": 5
-      }
+      },
+      "physio": "active"
     },
     {
       "id": "festive-dinner",

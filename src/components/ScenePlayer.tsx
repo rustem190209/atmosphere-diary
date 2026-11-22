@@ -17,8 +17,13 @@ import type { DayRecord } from "@/lib/schema";
 import type { Scene } from "@/lib/render/types";
 import { H, W } from "@/lib/render/types";
 import { drawFrame, prepareScene, PREVIEW_SCALE } from "@/lib/render/engine";
+import type { Candidate } from "@/lib/music/musicMatch";
+import { GenerativeScore } from "@/lib/music/genScore";
 
-export default function ScenePlayer({ day }: { day: DayRecord }) {
+// soundtrack — саундтрек, подобранный системой; если задан, играет он вместо песни пользователя
+export default function ScenePlayer({ day, soundtrack }: { day: DayRecord; soundtrack?: Candidate }) {
+  const scoreRef = useRef<GenerativeScore | null>(null);
+  const genCtxRef = useRef<AudioContext | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const sceneRef = useRef<Scene | null>(null);
@@ -65,6 +70,10 @@ export default function ScenePlayer({ day }: { day: DayRecord }) {
       sceneRef.current = null;
       audioCtxRef.current?.close();
       audioCtxRef.current = null;
+      scoreRef.current?.stop();
+      scoreRef.current = null;
+      genCtxRef.current?.close();
+      genCtxRef.current = null;
       stopNarration();
     };
   }, [day, duration]);
@@ -72,8 +81,8 @@ export default function ScenePlayer({ day }: { day: DayRecord }) {
   // Временная ссылка на аудиофайл дня; удаляем, когда день сменился
   const songSrc = useMemo(
     () =>
-      day.input.songFile ? URL.createObjectURL(day.input.songFile) : undefined,
-    [day],
+      day.input.songFile && !soundtrack ? URL.createObjectURL(day.input.songFile) : undefined,
+    [day, soundtrack],
   );
   useEffect(
     () => () => {
@@ -97,7 +106,21 @@ export default function ScenePlayer({ day }: { day: DayRecord }) {
     let startClock = performance.now();
     let offset = 0;
 
-    if (a && songSrc) {
+    if (soundtrack) {
+      // Система «сочиняет» саундтрек прямо в браузере; старт только из клика Play
+      scoreRef.current?.stop();
+      genCtxRef.current?.close();
+      const gctx = new AudioContext();
+      const score = new GenerativeScore(gctx, {
+        bpm: soundtrack.bpm, mode: soundtrack.mode, energy: soundtrack.energy,
+        brightness: soundtrack.brightness, tags: soundtrack.tags, seed: day.id.length * 31 + soundtrack.bpm,
+      });
+      score.start();
+      if (speakingRef.current) score.duck(true);
+      genCtxRef.current = gctx;
+      scoreRef.current = score;
+      analyserRef.current = score.getAnalyser();
+    } else if (a && songSrc) {
       // Анализатор громкости: зерно и фигуры реагируют на музыку
       if (!audioCtxRef.current) {
         const actx = new AudioContext();
@@ -131,7 +154,7 @@ export default function ScenePlayer({ day }: { day: DayRecord }) {
           ? a.currentTime - offset
           : (performance.now() - startClock) / 1000;
       let amp = 0;
-      if (analyserRef.current && a && !a.paused) {
+      if (analyserRef.current && (soundtrack || (a && !a.paused))) {
         analyserRef.current.getByteTimeDomainData(buf);
         let sum = 0;
         for (const v of buf) sum += ((v - 128) / 128) ** 2;
@@ -146,6 +169,7 @@ export default function ScenePlayer({ day }: { day: DayRecord }) {
       if (t < duration) rafRef.current = requestAnimationFrame(tick);
       else {
         a?.pause();
+        scoreRef.current?.stop();
         setPlaying(false);
       }
     };
@@ -155,6 +179,7 @@ export default function ScenePlayer({ day }: { day: DayRecord }) {
   function stop() {
     cancelAnimationFrame(rafRef.current);
     audioRef.current?.pause();
+    scoreRef.current?.stop();
     setPlaying(false);
   }
 
@@ -163,10 +188,12 @@ export default function ScenePlayer({ day }: { day: DayRecord }) {
     narrate(day.input.text, day.mood.narrationTone, {
       onStart: () => {
         speakingRef.current = true;
+        scoreRef.current?.duck(true); // музыка тише под речью
         setSpeaking(true);
       },
       onEnd: () => {
         speakingRef.current = false;
+        scoreRef.current?.duck(false);
         setSpeaking(false);
       },
     });
@@ -222,7 +249,7 @@ export default function ScenePlayer({ day }: { day: DayRecord }) {
         </span>
       )}
       {songSrc && <audio ref={audioRef} src={songSrc} preload="auto" />}
-      {day.audio.source === "link" && day.input.songUrl && (
+      {!soundtrack && day.audio.source === "link" && day.input.songUrl && (
         <div className="embed">
           {showEmbed && embedSrc ? (
             <iframe

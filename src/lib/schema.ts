@@ -71,7 +71,7 @@ export const AudioSpecSchema = z.object({
   energy: unit,
   brightness: unit,
   mode: z.enum(["major", "minor", "unknown"]),
-  source: z.enum(["file", "link"]),
+  source: z.enum(["file", "link", "generated"]), // generated — саундтрек, сочинённый системой в браузере
   estimated: z.boolean(),
   embedUrl: z.string().optional(),
 });
@@ -79,6 +79,7 @@ export type AudioSpec = z.infer<typeof AudioSpecSchema>;
 
 export const PhysioContextSchema = z.object({
   kind: z.enum(["demo", "import"]),
+  restHr: z.number().optional(), // пульс покоя (если известен)
   avgHr: z.number(),
   maxHr: z.number(),
   series: z.array(z.object({ t: z.number(), hr: z.number() })).max(48),

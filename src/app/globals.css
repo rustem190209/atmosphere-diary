@@ -184,3 +184,8 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
   .logo { font-size: 18px; }
   .site-header nav { gap: 14px; font-size: 15px; }
 }
+.file-chip { position: relative; cursor: pointer; }
+.file-chip input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.music-card { margin: 24px auto 0; max-width: 560px; border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; background: var(--surface); display: flex; flex-direction: column; gap: 8px; }
+.music-card h3 { font-family: var(--font-serif), serif; font-size: 22px; }
+.pulse-chart { width: 100%; max-width: 560px; height: 90px; display: block; }

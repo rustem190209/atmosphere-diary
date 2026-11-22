@@ -1,5 +1,5 @@
 // Полный путь дня: ввод → анализ (текст, фото, музыка) → слияние → стиль → постер → сохранение.
-import type { AudioSpec, CheckIn, DayRecord, MoodSpec } from "./schema";
+import type { AudioSpec, CheckIn, DayRecord, MoodSpec, PhysioContext } from "./schema";
 import { MoodSpecSchema } from "./schema";
 import { analyzePhotos, resizeImage } from "./photo/analyze";
 import {
@@ -20,8 +20,10 @@ export interface DayInput {
     | { kind: "file"; file: File; meta: SongMeta }
     | { kind: "link"; url: string; meta: SongMeta };
   checkIn?: CheckIn;
+  physio?: PhysioContext; // пульс: демо-данные или импорт JSON
   consent: boolean;
   createdAt?: string; // дата дня (для демо-дней — в прошлом)
+  id?: string; // постоянный id (у демо-дней), иначе генерируется
   demo?: boolean;
 }
 
@@ -108,10 +110,10 @@ export async function buildDay(
   }
 
   onStep("draw");
-  const mood = fuse(textMood, input.checkIn);
-  const style = mapToStyle(mood, photo, audio, input.checkIn);
+  const mood = fuse(textMood, input.checkIn, input.physio);
+  const style = mapToStyle(mood, photo, audio, input.checkIn, !!input.physio);
   const day: DayRecord = {
-    id: newDayId(input.createdAt),
+    id: input.id ?? newDayId(input.createdAt),
     createdAt: input.createdAt ?? new Date().toISOString(),
     demo: input.demo,
     title: mood.title,
@@ -121,6 +123,7 @@ export async function buildDay(
       songFile,
       songUrl,
       checkIn: input.checkIn,
+      physio: input.physio,
     },
     mood,
     photo,

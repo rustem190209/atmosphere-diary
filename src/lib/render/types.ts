@@ -1,5 +1,6 @@
 // Общие типы и константы рендерера. Холст в логических координатах 1080×1920 (9:16).
 import type { MoodSpec, StyleParams } from "../schema";
+import type { PreparedPhoto, ShotPlan } from "./virtualCamera";
 
 export const W = 1080;
 export const H = 1920;
@@ -48,6 +49,8 @@ export interface Scene {
   dateLabel: string;
   bpm: number;
   images: ImageBitmap[];
+  prepared: PreparedPhoto[]; // фото, подготовленные для «виртуального оператора» (фон + объект)
+  shots: ShotPlan[]; // план съёмки: планы, тайминги, удары камеры
   strokes: Stroke[][]; // мазки для каждого фото
   shapes: Shape[];
   grain: HTMLCanvasElement;

@@ -1,5 +1,6 @@
 // Слой плёнки: зерно, засветы, ореол и виньетка.
 import { H, W, type Scene } from "../types";
+import { drawDust } from "../virtualCamera";
 
 export function drawFilmLayer(
   ctx: CanvasRenderingContext2D,
@@ -50,6 +51,9 @@ export function drawFilmLayer(
     }
     ctx.restore();
   }
+
+  // Пыль в луче света: больше для «плёночных» и ностальгических дней
+  drawDust(ctx, t, W, H, Math.min(1, weights.film * 1.2 + glow * 0.3), 7);
 
   // Виньетка
   const v = ctx.createRadialGradient(

@@ -9,6 +9,7 @@ import {
   type PhysioContext,
 } from "../schema";
 import { EMOTION_DIMS } from "../analyze/fallback";
+import { physioArousal, physioPeaks, pulseLabel } from "../physio";
 
 const norm5 = (v: number) => (v - 1) / 4; // шкала 1..5 → 0..1
 
@@ -88,11 +89,21 @@ export function fuse(
       notes.push(`«Хотел бы пережить снова» — ${checkIn.wouldRelive}/5`);
   }
 
-  // Пульс не меняет эмоции: только добавляет «линию ритма дня» в оформление
-  if (physio)
+  // Пульс — контекст, а не подтверждение эмоций: двигает только оценку активности (вес 0.35)
+  // и даёт моменты пиков для «ударов камеры». Эмоции и valence не меняет.
+  if (physio) {
+    const arousal = physioArousal(physio);
+    const before = mood.energy;
+    mood.energy = +clamp((before + 0.35 * arousal) / 1.35).toFixed(2);
+    const agree = Math.abs(arousal - text.energy) < 0.3;
+    const peaks = physioPeaks(physio).length;
     notes.push(
-      `Пульс дня (в среднем ${Math.round(physio.avgHr)} уд/мин) рисуется тонкой линией и не влияет на оценку эмоций`,
+      `Пульс (${pulseLabel(physio)}): средний ${Math.round(physio.avgHr)}, пик ${Math.round(physio.maxHr)} уд/мин → активность ≈${Math.round(arousal * 100)}%, ` +
+        `${agree ? "согласуется" : "расходится"} с активностью, описанной в тексте (≈${Math.round(text.energy * 100)}%). ` +
+        `Энергия дня ${Math.round(before * 100)}% → ${Math.round(mood.energy * 100)}%${peaks ? `, пиков дня: ${peaks} — на них «удары» камеры` : ""}. ` +
+        `Пульс используется только как контекст и не определяет эмоции`,
     );
+  }
 
   return mood;
 }

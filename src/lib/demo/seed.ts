@@ -4,6 +4,8 @@
 import type { CheckIn } from "../schema";
 import type { SongMeta } from "../audio/analyze";
 import { buildDay } from "../pipeline";
+import { getDay } from "../storage/db";
+import { demoPulse, type DemoPulse } from "../physio";
 import { seededRandom } from "../render/random";
 
 interface DemoDay {
@@ -20,6 +22,7 @@ interface DemoDay {
   };
   meta?: SongMeta;
   checkIn?: CheckIn;
+  physio?: DemoPulse; // демо-пульс (честно помечается как демо-данные)
 }
 
 const FLAG = "diary-demo-seeded-v1";
@@ -308,6 +311,8 @@ export async function seedDemoDays(
   const { days } = (await r.json()) as { days: DemoDay[] };
   let added = 0;
   for (const d of days) {
+    // Демо-день с постоянным id: прямая ссылка /day/demo-… работает у любого человека
+    if (await getDay(`demo-${d.id}`)) { added++; onProgress?.(added, days.length); continue; }
     try {
       const photos = d.photos?.length
         ? await Promise.all(
@@ -346,6 +351,8 @@ export async function seedDemoDays(
           checkIn: d.checkIn,
           consent: false,
           createdAt: new Date(d.date).toISOString(),
+          id: `demo-${d.id}`,
+          physio: d.physio ? demoPulse(d.physio) : undefined,
           demo: true,
         },
         () => undefined,

@@ -9,6 +9,10 @@ import { deleteDay, getDay } from "@/lib/storage/db";
 import ScenePlayer from "@/components/ScenePlayer";
 import WhyPanel from "@/components/WhyPanel";
 import { exportDayZip } from "@/lib/export/zip";
+import { seedDemoDays } from "@/lib/demo/seed";
+import MusicCard from "@/components/MusicCard";
+import { pickForDay, presetAudioSpec, presetById } from "@/lib/music/daySoundtrack";
+import { mapToStyle } from "@/lib/style/mapToStyle";
 
 type Tab = "memory" | "folder" | "why";
 
@@ -59,11 +63,32 @@ export default function DayView() {
   const router = useRouter();
   const [day, setDay] = useState<DayRecord | null | undefined>(undefined);
   const [tab, setTab] = useState<Tab>("memory");
+  const [seeding, setSeeding] = useState(false);
+  // Что звучит: "user" — песня пользователя, иначе id саундтрека, подобранного системой
+  const [source, setSource] = useState("user");
+  const pick = useMemo(() => (day ? pickForDay(day.mood, day.audio) : null), [day]);
+  // Если звучит подобранный саундтрек — стиль пересчитывается от его темпа и энергии
+  const shown = useMemo(() => {
+    if (!day || source === "user") return day;
+    const c = presetById(source);
+    if (!c) return day;
+    const audio = presetAudioSpec(c);
+    return { ...day, audio, style: mapToStyle(day.mood, day.photo, audio, day.input.checkIn, !!day.input.physio) };
+  }, [day, source]);
 
   useEffect(() => {
-    getDay(decodeURIComponent(id))
-      .then((d) => setDay(d ?? null))
-      .catch(() => setDay(null));
+    const dayId = decodeURIComponent(id);
+    (async () => {
+      let d = await getDay(dayId);
+      // Ссылка на пример, а в этом браузере примеров ещё нет — загружаем их и открываем день
+      if (!d && dayId.startsWith("demo-")) {
+        setSeeding(true);
+        await seedDemoDays();
+        d = await getDay(dayId);
+        setSeeding(false);
+      }
+      setDay(d ?? null);
+    })().catch(() => setDay(null));
   }, [id]);
 
   async function remove() {
@@ -90,7 +115,8 @@ export default function DayView() {
     setTimeout(() => URL.revokeObjectURL(url), 2000);
   }
 
-  if (day === undefined) return <p className="muted">Открываю день…</p>;
+  if (day === undefined)
+    return <p className="muted">{seeding ? "Загружаю примеры дней (первый запуск, ~15 секунд)…" : "Открываю день…"}</p>;
   if (day === null)
     return (
       <section>
@@ -136,10 +162,12 @@ export default function DayView() {
 
       {/* Плеер не размонтируем при смене вкладки, чтобы музыка не обрывалась */}
       <div hidden={tab !== "memory"}>
-        <ScenePlayer day={day} />
+        {/* key: при смене саундтрека плеер пересоздаётся с новым стилем */}
+        <ScenePlayer key={source} day={shown ?? day} soundtrack={source === "user" ? undefined : presetById(source)} />
+        {pick && <MusicCard pick={pick} source={source} onSource={setSource} />}
       </div>
       {tab === "folder" && <Folder day={day} />}
-      {tab === "why" && <WhyPanel day={day} />}
+      {tab === "why" && <WhyPanel day={shown ?? day} pick={pick ?? undefined} source={source} />}
 
       <div className="day-actions">
         <Link href="/archive">← В архив</Link>
