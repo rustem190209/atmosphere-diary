@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { pickMusic, explainMatch, PRESETS, scoreOne } from "../src/lib/music/musicMatch.ts";
+import { pickMusic, explainMatch, scoreOne } from "../src/lib/music/musicMatch.ts";
 import type { Profile, Candidate } from "../src/lib/music/musicMatch.ts";
 import { fuse, demoPhysio } from "../src/lib/fusion/fusionV2.ts";
 import type { TextEstimate, CheckIn } from "../src/lib/fusion/fusionV2.ts";

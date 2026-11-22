@@ -19,8 +19,8 @@ export default function MemoryCard({
       style={{ animationDelay: `${Math.min(index, 8) * 70}ms` }}
     >
       <div className="frame">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
         {poster ? (
+          // eslint-disable-next-line @next/next/no-img-element
           <img src={poster} alt={`Кадр воспоминания «${day.title}»`} />
         ) : null}
         {day.demo && <span className="badge">пример</span>}

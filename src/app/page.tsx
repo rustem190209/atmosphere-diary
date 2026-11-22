@@ -61,8 +61,8 @@ export default function HomePage() {
           className="hero-visual"
           aria-label={hero ? `Открыть «${hero.title}»` : "Создать воспоминание"}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
           {hero && posters.get(hero.id) ? (
+            // eslint-disable-next-line @next/next/no-img-element
             <img src={posters.get(hero.id)} alt="" />
           ) : null}
           {!hero && (
